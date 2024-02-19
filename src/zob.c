@@ -106,11 +106,9 @@ void saveTodosCSV(const char* directory) {
         return;
     }
 
-    // Write CSV headers
     fprintf(file, "DueDate,IsDone,Description\n");
 
     for (int i = 0; i < todoCount; i++) {
-        // Writing in CSV format
         fprintf(file, "%d,%d,\"%s\"\n", todos[i].dueDate, todos[i].isDone, todos[i].description);
     }
 
