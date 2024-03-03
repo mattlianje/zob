@@ -6,6 +6,19 @@
 #include <sys/types.h>
 #include <pwd.h>
 
+/**
+ * Prototypes... 
+ */
+void loadTodos(void);
+void interactiveMode(void);
+void saveTodos(void);
+void addTodoToCsvIfNew(const char* description, int dueDate);
+int isTodoNew(const char* description, int dueDate);
+void parseZobFile(const char *filePath);
+void refreshZobFiles(const char *directory);
+void listTodosInteractive(void);
+void toggleTodoStatus(int id);
+void addNewTodoInteractive(void);
 
 /**
  * A man doesn't need more than 100 TODO's
@@ -31,6 +44,7 @@ TodoItem todos[MAX_TODO];
  */
 int todoCount = 0; 
 
+#ifndef TESTING
 int main() {
     const char* homeDir = getenv("HOME");
     if (!homeDir) {
@@ -44,12 +58,7 @@ int main() {
     saveTodos(); 
     return 0;
 }
-
-/**
- * Prototypes... 
- */
-void addTodoToCsvIfNew(const char* description, int dueDate);
-int isTodoNew(const char* description, int dueDate);
+#endif
 
 /**
  * Parses a given .zob file and prints lines containing TODO items.
@@ -125,23 +134,23 @@ void addTodoToCsvIfNew(const char* description, int dueDate) {
  */
 int isTodoNew(const char* description, int dueDate) {
     FILE* file = fopen(".todos.csv", "r");
-    // No todos dotifle yet <=> all TODO new
     if (file == NULL) {
-        return 1; 
+        return 1;
     }
 
     char line[512];
+    char dueDateStr[12]; // Buffers dueDate as a string
+    sprintf(dueDateStr, "%d", dueDate); // Converts dueDate to a string
+
     while (fgets(line, sizeof(line), file) != NULL) {
-        if (strstr(line, description) && strstr(line, dueDate)) {
+        if (strstr(line, description) && strstr(line, dueDateStr)) { 
             fclose(file);
-            // Match <=> TODO exists
-            return 0; 
+            return 0; // TODO exists
         }
     }
 
     fclose(file);
-    // No match <=> TODO is now
-    return 1; 
+    return 1; // TODO is new
 }
 
 /**
@@ -210,6 +219,10 @@ void loadTodos() {
         todoCount++;
     }
     fclose(file);
+}
+
+int countTodos(void) {
+    return todoCount; 
 }
 
 /**
