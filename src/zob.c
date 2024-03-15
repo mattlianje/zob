@@ -1,349 +1,352 @@
-#include <dirent.h>
+#include <errno.h>
+#include <limits.h>
+#include <signal.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <pwd.h>
 
 /**
- * Prototypes... 
+ * CSV Schema Reminder: The .todos.csv file follows this structure:
+ * todo_id (integer), due_date (YYYYMMDD as string), status (string), title
+ * (string), description (string)
  */
-void loadTodos(void);
-void interactiveMode(void);
-void saveTodos(void);
-void addTodoToCsvIfNew(const char* description, int dueDate);
-int isTodoNew(const char* description, int dueDate);
-void parseZobFile(const char *filePath);
-void refreshZobFiles(const char *directory);
-void listTodosInteractive(void);
-void toggleTodoStatus(int id);
-void addNewTodoInteractive(void);
-
-/**
- * A man doesn't need more than 100 TODO's
- */
-#define MAX_TODO 100
+const char *zob_directory = "~/zob";
+const char *zobmaster = "Matthieu Court";
+/* A man doesn't need more than 50 todos in his life */
+int max_todos = 100;
 
 typedef struct {
-    int id; // Unique ID per TODO
-    char description[256]; // Keep it short and concise
-    int dueDate; // Always in YYYYMMDD
-    char status[10];  // "todo" by default or "done"
-} TodoItem;
+  int todo_id;
+  char due_date[9]; // YYYYMMdd format
+  char status[10];
+  char title[50];
+  char description[256];
+} Todo;
 
+void displayMenu();
+void addTodo();
+void removeTodo();
+int generateTodoId();
+void initializeGlobals();
+void viewTodosSortedByDate();
+int compareTodosByDate(const void *a, const void *b);
+void sortTodos(Todo todos[], int count);
+int readTodosFromFile(const char *filePath, Todo todos[], int maxTodos);
+void setupSigintHandler();
+void waitForEnterKey();
+void handle_sigint(int sig);
 
-/*
- * Globals
- */
-char zobSpaceRootDir[1024] = "~/zob"; 
-char zobMaster[256] = "Matthieu Court";
-TodoItem todos[MAX_TODO];
-/**
- * Tracks number of items in the TODO buffer
- */
-int todoCount = 0; 
-
-#ifndef TESTING
 int main() {
-    const char* homeDir = getenv("HOME");
-    if (!homeDir) {
-        struct passwd* pw = getpwuid(getuid());
-        homeDir = pw->pw_dir;
-    }
-    snprintf(zobSpaceRootDir, sizeof(zobSpaceRootDir), "%s/zob", homeDir);
-
-    loadTodos(); 
-    interactiveMode(); 
-    saveTodos(); 
-    return 0;
-}
-#endif
-
-/**
- * Parses a given .zob file and prints lines containing TODO items.
- * adds these lines to todos dotfile
- *
- * @param filePath The path to the .zob file to be parsed.
- */
-void parseZobFile(const char *filePath) {
-    FILE *file = fopen(filePath, "r");
-    if (file == NULL) {
-        printf("Could not open file %s\n", filePath);
-        return;
-    }
-
-    char *line = NULL;
-    size_t len = 0;
-    ssize_t read;
-    int dueDate;
-
-    while ((read = getline(&line, &len, file)) != -1) {
-        if (strstr(line, "** TODO")) {
-            // Format "** TODO [dueDate] description"
-            char* start = strstr(line, "[") + 1;
-            char* end = strstr(line, "]");
-            if (start && end && (end > start)) {
-                char dueDateStr[9] = {0}; 
-                strncpy(dueDateStr, start, end - start);
-                dueDate = atoi(dueDateStr);
-
-                char description[256];
-                strncpy(description, end + 2, sizeof(description) - 1); 
-                description[sizeof(description) - 1] = '\0'; 
-
-                addTodoToCsvIfNew(description, dueDate);
-            }
-        }
-    }
-
-    free(line);
-    fclose(file);
-}
-
-/**
- * Adds a new TODO item to the .todos.csv file if it doesn't already exist.
- * The function checks if the TODO item is new by calling `isTodoNew`.
- * If the item is new, it appends the TODO item to the .todos.csv file.
- *
- * @param description The description of the TODO item.
- * @param dueDate The due date of the TODO item, formatted as YYYYMMDD.
- */
-void addTodoToCsvIfNew(const char* description, int dueDate) {
-    if (!isTodoNew(description, dueDate)) {
-        return; 
-    }
-
-    // Append new TODO to .todos.csv
-    FILE* file = fopen(".todos.csv", "a"); 
-    if (file != NULL) {
-        fprintf(file, "%d,\"%s\"\n", dueDate, description);
-        fclose(file);
-    }
-}
-
-/**
- * Checks if a given TODO item is new (i.e., it does not already exist in the
- * .todos.csv file).  The function opens the .todos.csv file and searches for a
- * TODO with the same description and due date.  If such a TODO is found, it is
- * considered not new.
- *
- * @param description The description of the TODO item to check.
- * @param dueDate The due date of the TODO item to check, formatted as YYYYMMDD.
- * @return 1 if the TODO item is new, 0 otherwise.
- */
-int isTodoNew(const char* description, int dueDate) {
-    FILE* file = fopen(".todos.csv", "r");
-    if (file == NULL) {
-        return 1;
-    }
-
-    char line[512];
-    char dueDateStr[12]; // Buffers dueDate as a string
-    sprintf(dueDateStr, "%d", dueDate); // Converts dueDate to a string
-
-    while (fgets(line, sizeof(line), file) != NULL) {
-        if (strstr(line, description) && strstr(line, dueDateStr)) { 
-            fclose(file);
-            return 0; // TODO exists
-        }
-    }
-
-    fclose(file);
-    return 1; // TODO is new
-}
-
-/**
- * Recursively traverses the specified directory and its subdirectories
- * to find and process `.zob` files. Each `.zob` file found is parsed
- * to extract TODO items, which are then added to the `.todos.csv` file
- * in the zobspace root directory if not already present.
- *
- * @param directory Path to the directory to start the search from.
- */
-void refreshZobFiles(const char *directory) {
-    struct dirent *de;
-    DIR *dr = opendir(directory);
-
-    if (dr == NULL) {
-        printf("Could not open directory %s\n", directory);
-        return;
-    }
-
-    while ((de = readdir(dr)) != NULL) {
-        // Checks if the directory entry is a directory
-        if (de->d_type == DT_DIR) {
-            char path[1024];
-            // Skip the current and parent directory entries '.' and '..'
-            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0)
-                continue;
-
-            // Full path of subdirectory
-            snprintf(path, sizeof(path), "%s/%s", directory, de->d_name);
-            refreshZobFiles(path);
-
-        } else if (strstr(de->d_name, ".zob")) {
-
-            // Construct the full path of the .zob file
-            char filePath[1024];
-            snprintf(filePath, sizeof(filePath), "%s/%s", directory, de->d_name);
-
-            // Parse - find and write the TODO s
-            parseZobFile(filePath);
-        }
-    }
-
-    closedir(dr);
-}
-
-/**
- * Loads TODO items from the .todos.csv file into the global todos array.
- * Initializes todoCount based on the number of items loaded.
- * Each line from the file is expected to follow the format: description,dueDate,status
- */
-void loadTodos() {
-    char filePath[1024];
-    snprintf(filePath, sizeof(filePath), "%s/.todos.csv", zobSpaceRootDir);
-    FILE *file = fopen(filePath, "r");
-    if (!file) {
-        printf("No TODO items found.\n");
-        return;
-    }
-    char line[512];
-    todoCount = 0;
-    while (fgets(line, sizeof(line), file) && todoCount < MAX_TODO) {
-        // !! : CSV format must be description,dueDate,status
-        sscanf(line, "\"%[^\"]\",%d,%[^\"]", todos[todoCount].description, &todos[todoCount].dueDate, todos[todoCount].status);
-        // Sequential ID incrementing
-        todos[todoCount].id = todoCount + 1; 
-        todoCount++;
-    }
-    fclose(file);
-}
-
-int countTodos(void) {
-    return todoCount; 
-}
-
-/**
- * Saves all TODO items from the global todos array to the .todos.csv file.
- * Overwrites the existing file with updated content.
- */
-void saveTodos() {
-    char filePath[1024];
-    snprintf(filePath, sizeof(filePath), "%s/.todos.csv", zobSpaceRootDir);
-    FILE *file = fopen(filePath, "w");
-    if (!file) {
-        printf("Failed to open .todos.csv for writing.\n");
-        return;
-    }
-    for (int i = 0; i < todoCount; i++) {
-        fprintf(file, "\"%s\",%d,%s\n", todos[i].description, todos[i].dueDate, todos[i].status);
-    }
-    fclose(file);
-}
-
-/**
- * Lists all TODO items currently loaded in the global todos array.
- * Displays each item's ID, description, due date, and status.
- */
-void listTodosInteractive() {
-    for (int i = 0; i < todoCount; i++) {
-        printf("%d: %s - Due: %d [%s]\n", todos[i].id, todos[i].description, todos[i].dueDate, todos[i].status);
-    }
-}
-
-/**
- * Toggles the status of a TODO item identified by its ID.
- * Changes the status from "todo" to "done" or vice versa.
- * If the specified ID is not found, prints an error message.
- * @param id The ID of the TODO item to toggle the status of.
- */
-void toggleTodoStatus(int id) {
-    for (int i = 0; i < todoCount; i++) {
-        if (todos[i].id == id) {
-            if (strcmp(todos[i].status, "todo") == 0) {
-                strcpy(todos[i].status, "done");
-            } else {
-                strcpy(todos[i].status, "todo");
-            }
-            printf("TODO %d marked as %s.\n", id, todos[i].status);
-            return;
-        }
-    }
-    printf("TODO ID %d not found.\n", id);
-}
-
-/**
- * Prompts the user for a description and due date, then adds a new TODO item.
- * The new item is assigned the next sequential ID and a default status of "todo".
- * If the maximum number of TODOs (MAX_TODO) is reached, displays an error message.
- */
-void addNewTodoInteractive() {
-    if (todoCount >= MAX_TODO) {
-        printf("Maximum number of TODOs reached.\n");
-        return;
-    }
-
-    char description[256];
-    int dueDate;
-
-    printf("Enter TODO description: ");
-    fgets(description, sizeof(description), stdin);
-    description[strcspn(description, "\n")] = 0; 
-
-    printf("Enter due date (YYYYMMDD): ");
-    scanf("%d", &dueDate);
-    getchar(); 
-
-    // Add the new TODO
-    strcpy(todos[todoCount].description, description);
-    todos[todoCount].dueDate = dueDate;
-    strcpy(todos[todoCount].status, "todo"); 
-    todos[todoCount].id = todoCount + 1; 
-    todoCount++;
-
-    printf("New TODO added.\n");
+  initializeGlobals();
+  displayMenu();
+  return 0;
 }
 
 /**
  * Interactive mode for managing TODO items.
  * Changes are saved to the .todos.csv file upon exiting.
  */
-void interactiveMode() {
-    int running = 1;
-    char input[256];
-    int choice;
+void displayMenu() {
+  int choice;
 
-    while (running) {
-        printf("\n「Z O B」— Zen Org Binder\n");
-        printf("1. List TODO Items\n");
-        printf("2. Add a TODO Item\n");
-        printf("3. Mark a TODO Item as Done\n");
-        printf("4. Exit\n");
-        printf("Enter your choice: ");
-        fgets(input, sizeof(input), stdin);
-        choice = atoi(input);
+  while (1) {
+    system("clear || cls");
 
-        switch (choice) {
-            case 1:
-                listTodosInteractive();
-                break;
-            case 2:
-                addNewTodoInteractive();
-                break;
-            case 3:
-                printf("Enter TODO ID to toggle status: ");
-                fgets(input, sizeof(input), stdin);
-                int id = atoi(input);
-                toggleTodoStatus(id);
-                break;
-            case 4:
-                running = 0;
-                break;
-            default:
-                printf("Invalid choice. Please try again.\n");
-        }
+    printf("\n「Z O B」— Zen Org Binder\n\n");
+    printf("1. Add\n");
+    printf("2. Remove\n");
+    printf("3. View\n");
+    printf("4. Exit\n\n");
+    printf("Choose an option: ");
+    scanf("%d", &choice);
+
+    switch (choice) {
+    case 1:
+      addTodo();
+      waitForEnterKey();
+      break;
+    case 2:
+      removeTodo();
+      waitForEnterKey();
+      break;
+    case 3:
+      system("clear || cls");
+      viewTodosSortedByDate();
+      waitForEnterKey();
+      break;
+    case 4:
+      system("clear || cls");
+      printf("Exiting「Z O B」...\n");
+      return;
+    default:
+      printf("Invalid option, please try again.\n");
     }
-    saveTodos(); 
+  }
+}
+
+/* Initializes zobmaster and zobspace */
+void initializeGlobals() {
+  const char *homeDir = getenv("HOME");
+  if (!homeDir) {
+    printf("「Z O B」— Path to dwelling unknown.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  static char zobDirBuffer[PATH_MAX];
+  snprintf(zobDirBuffer, sizeof(zobDirBuffer), "%s/zob", homeDir);
+  zob_directory = zobDirBuffer;
+}
+
+/* signal handler for sigint */
+void handle_sigint(int sig) {
+  printf("\nExiting「Z O B」...\n");
+  exit(EXIT_SUCCESS);
+}
+
+void setupSigintHandler() {
+  struct sigaction sa;
+  sa.sa_handler = handle_sigint;
+  sigemptyset(&sa.sa_mask);
+  sa.sa_flags = 0;
+  if (sigaction(SIGINT, &sa, NULL) == -1) {
+    perror("Error setting up signal handler");
+    exit(EXIT_FAILURE);
+  }
+}
+
+/* Prompt before clearing buffer */
+void waitForEnterKey() {
+  printf("\n「Z O B」Inhale... Press ENTER\n");
+  while (getchar() != '\n')
+    ;
+  getchar();
+}
+
+/**
+ * Fetches the path to the user's home directory from the environment variables.
+ *
+ * @return The path to the home directory. Returns NULL if the HOME environment
+ * variable is not set.
+ */
+const char *getHomeDirectory() {
+  // Fetch the HOME environment variable
+  const char *homeDir = getenv("HOME");
+  if (!homeDir) {
+    // HOME is not set; handle as needed
+    printf("「Z O B」— Unable to discern the path home.\n");
+    return NULL;
+  }
+  return homeDir;
+}
+
+/* Checks for date format YYYYMMDD: 8 digits */
+bool validateDate(const char *date) {
+  if (strlen(date) != 8)
+    return false;
+  for (int i = 0; i < 8; i++) {
+    if (date[i] < '0' || date[i] > '9')
+      return false;
+  }
+  return true;
+}
+
+/**
+ * Adds a new TODO item to the .todos.csv file.
+ * Prompts the user for the item's details, generates a unique ID,
+ * and saves the new entry. Ensures the due date format is validated
+ * before saving. The new item is appended to the file.
+ */
+void addTodo() {
+  char filePath[1024];
+  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
+
+  Todo newTodo;
+  newTodo.todo_id = generateTodoId();
+  if (newTodo.todo_id == -1)
+    return;
+
+  printf("\n「Z O B」— Zen Org Binder\nReflect on the task's essence: ");
+  scanf(" %[^\n]", newTodo.title);
+
+  while (true) {
+    printf("Enter the cycle's completion date (YYYYMMDD): ");
+    scanf("%8s", newTodo.due_date);
+    if (!validateDate(newTodo.due_date)) {
+      printf("「Z O B」— A leaf falls; the date is not proper.\n");
+    } else
+      break;
+  }
+
+  printf("Whisper the task's details into the wind: ");
+  scanf(" %[^\n]", newTodo.description);
+
+  strcpy(newTodo.status, "Pending");
+
+  FILE *file = fopen(filePath, "a");
+  if (!file) {
+    printf("「Z O B」— Unable to open the scroll.\n");
+    return;
+  }
+
+  fprintf(file, "%d,%s,%s,%s,%s\n", newTodo.todo_id, newTodo.due_date,
+          newTodo.status, newTodo.title, newTodo.description);
+  fclose(file);
+  printf("「Z O B」— Your task joins the stream.\n");
+}
+
+/**
+ * Removes a specified TODO item by its ID from the .todos.csv file.
+ * Users are prompted to enter the ID of the TODO they wish to remove.
+ * The function ensures only the specified TODO is removed, preserving all
+ * others.
+ */
+void removeTodo() {
+  char filePath[PATH_MAX], tempFilePath[PATH_MAX];
+  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
+  snprintf(tempFilePath, sizeof(tempFilePath), "%s/temp_todos.csv",
+           zob_directory);
+
+  FILE *file = fopen(filePath, "r");
+  FILE *tempFile = fopen(tempFilePath, "w");
+
+  if (!file || !tempFile) {
+    perror("「Z O B」— Failed to open the scroll");
+    exit(EXIT_FAILURE);
+  }
+
+  printf("\n「Z O B」— Zen Org Binder\n");
+  printf("Which task has reached enlightenment? Enter its ID: ");
+  int removeId;
+  scanf("%d", &removeId);
+
+  char line[1024];
+  int found = 0;
+
+  while (fgets(line, sizeof(line), file)) {
+    int todoId;
+    // todo ID first field in the CSV
+    if (sscanf(line, "%d,", &todoId) == 1 && todoId == removeId) {
+      found = 1; // Mark as found, but don't write to temp file
+      continue;
+    }
+    fputs(line, tempFile);
+  }
+
+  fclose(file);
+  fclose(tempFile);
+
+  // Update the file if todo found
+  if (found) {
+    remove(filePath);
+    rename(tempFilePath, filePath);
+    printf("「Z O B」— The task with ID %d is gone.\n", removeId);
+  } else {
+    remove(tempFilePath);
+    printf("「Z O B」— No task with such ID was found.\n");
+  }
+}
+
+/**
+ * Generates a unique ID for a new TODO item.
+ * The ID is determined by finding the highest existing ID in .todos.csv and
+ * incrementing it. If the maximum number of TODOs is reached, the function
+ * returns -1 to indicate failure.
+ */
+int generateTodoId() {
+  char filePath[1024];
+  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
+
+  FILE *file = fopen(filePath, "r");
+  if (!file) {
+    printf("「Z O B」— Pathway obscured, cannot find todos.csv\n");
+    return -1;
+  }
+
+  int maxId = 0, todoCount = 0;
+  char line[1024];
+
+  while (fgets(line, sizeof(line), file)) {
+    int id;
+    if (sscanf(line, "%d,", &id) == 1) {
+      maxId = id > maxId ? id : maxId;
+      todoCount++;
+    }
+  }
+
+  fclose(file);
+
+  if (todoCount >= max_todos) {
+    printf("「Z O B」— The scroll is full, no more todos can be inscribed\n");
+    return -1;
+  }
+
+  return maxId + 1;
+}
+
+/**
+ * Displays todo items sorted by their due date from the .todos.csv file.
+ */
+void viewTodosSortedByDate() {
+  Todo todos[max_todos];
+  char filePath[1024];
+  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
+
+  int count = readTodosFromFile(filePath, todos, max_todos);
+  if (count == -1) {
+    printf("「Z O B」— Unable to conjure the list of tasks.\n");
+    return;
+  }
+  // Sort todos by date
+  sortTodos(todos, count);
+
+  // Display sorted todos
+  printf("\n「Z O B」— Tasks in the cycle's flow:\n");
+  for (int i = 0; i < count; ++i) {
+    printf("\nTask %d: [Due: %s] %s\n", todos[i].todo_id, todos[i].due_date,
+           todos[i].title);
+    printf("Status: %s\n", todos[i].status);
+    printf("Detail: %s\n", todos[i].description);
+    printf("\n---\n"); // Simple delimiter between tasks
+  }
+}
+
+/**
+ * Compares two todo items based on their due date for sorting.
+ */
+int compareTodosByDate(const void *a, const void *b) {
+  const Todo *todoA = (const Todo *)a;
+  const Todo *todoB = (const Todo *)b;
+  return strcmp(todoA->due_date, todoB->due_date);
+}
+
+/**
+ * Sorts an array of todo items by due date using the quicksort algorithm.
+ */
+void sortTodos(Todo todos[], int count) {
+  qsort(todos, count, sizeof(Todo), compareTodosByDate);
+}
+
+/**
+ * Reads todo items from a specified .todos.csv file into an array of Todo
+ * structures. Returns the number of todos read.
+ */
+int readTodosFromFile(const char *filePath, Todo todos[], int maxTodos) {
+  FILE *file = fopen(filePath, "r");
+  if (!file)
+    return -1;
+
+  char line[1024];
+  int count = 0;
+
+  while (fgets(line, sizeof(line), file) && count < maxTodos) {
+    sscanf(line, "%d,%8s,%[^,],%[^,],%255[^\n]", &todos[count].todo_id,
+           todos[count].due_date, todos[count].status, todos[count].title,
+           todos[count].description);
+    count++;
+  }
+
+  fclose(file);
+  return count;
 }
