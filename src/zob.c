@@ -15,7 +15,7 @@
 const char *zob_directory = "~/zob";
 const char *zobmaster = "Matthieu Court";
 /* A man doesn't need more than 50 todos in his life */
-int max_todos = 100;
+int max_todos = 50;
 
 typedef struct {
   int todo_id;
@@ -308,7 +308,7 @@ void viewTodosSortedByDate() {
            todos[i].title);
     printf("Status: %s\n", todos[i].status);
     printf("Detail: %s\n", todos[i].description);
-    printf("\n---\n"); // Simple delimiter between tasks
+    printf("\n---\n");
   }
 }
 
