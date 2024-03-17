@@ -1,55 +1,81 @@
+#include "config.h"
+#include "utils/db_utils.h"
+
 #include <errno.h>
 #include <limits.h>
 #include <signal.h>
+#include <sqlite3.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
-/**
- * CSV Schema Reminder: The .todos.csv file follows this structure:
- * todo_id (integer), due_date (YYYYMMDD as string), status (string), title
- * (string), description (string)
- */
-const char *zob_directory = "~/zob";
-const char *zobmaster = "Matthieu Court";
-/* A man doesn't need more than 50 todos in his life */
-int max_todos = 50;
-
 typedef struct {
   int todo_id;
-  char due_date[9]; // YYYYMMdd format
+  /* In format: YYYYMMDD */
+  char due_date[9];
   char status[10];
   char title[50];
   char description[256];
 } Todo;
 
-void displayMenu();
-void addTodo();
-void removeTodo();
-int generateTodoId();
-void initializeGlobals();
-void viewTodosSortedByDate();
-int compareTodosByDate(const void *a, const void *b);
-void sortTodos(Todo todos[], int count);
-int readTodosFromFile(const char *filePath, Todo todos[], int maxTodos);
+
+/* Initialization */
+void constructFullPath();
+void initializeGlobals(); 
 void setupSigintHandler();
+
+/* Core */
+void displayMenu();
+void addTodo(sqlite3 *db);
+void viewTodosSortedByDate(sqlite3 *db);
+void removeTodo(sqlite3 *db);
+
+/* Data handling */
+void sortTodos(Todo todos[], int count);
+int compareTodosByDate(const void *a, const void *b);
+int readTodosFromFile(const char *filePath, Todo todos[], int maxTodos);
+
+/* User interaction */
 void waitForEnterKey();
+
+/* Signal Handling */
 void handle_sigint(int sig);
 
+char ZOB_DB_PATH[PATH_MAX];
+
 int main() {
-  initializeGlobals();
+  constructFullPath();
   displayMenu();
   return 0;
 }
 
+void constructFullPath() {
+  const char *homeDir = getenv("HOME");
+  if (!homeDir) {
+    fprintf(stderr, "「Z O B」— Cannot find the home directory.\n");
+    exit(EXIT_FAILURE);
+  }
+
+  snprintf(ZOB_DB_PATH, sizeof(ZOB_DB_PATH), "%s%s/%s", homeDir, ZOB_DIRECTORY,
+           ZOB_DB_NAME);
+}
+
 /**
  * Interactive mode for managing TODO items.
- * Changes are saved to the .todos.csv file upon exiting.
+ * Changes are persisted to the ZOB_DB SQLite
  */
 void displayMenu() {
   int choice;
+
+  sqlite3 *db;
+
+  if (db_open(ZOB_DB_PATH, &db) != SQLITE_OK) {
+    printf("*** Failed to open database at path: %s\n", ZOB_DB_PATH);
+    fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    return;
+  }
 
   while (1) {
     system("clear || cls");
@@ -64,16 +90,16 @@ void displayMenu() {
 
     switch (choice) {
     case 1:
-      addTodo();
+      addTodo(db);
       waitForEnterKey();
       break;
     case 2:
-      removeTodo();
+      removeTodo(db);
       waitForEnterKey();
       break;
     case 3:
       system("clear || cls");
-      viewTodosSortedByDate();
+      viewTodosSortedByDate(db);
       waitForEnterKey();
       break;
     case 4:
@@ -84,19 +110,7 @@ void displayMenu() {
       printf("Invalid option, please try again.\n");
     }
   }
-}
-
-/* Initializes zobmaster and zobspace */
-void initializeGlobals() {
-  const char *homeDir = getenv("HOME");
-  if (!homeDir) {
-    printf("「Z O B」— Path to dwelling unknown.\n");
-    exit(EXIT_FAILURE);
-  }
-
-  static char zobDirBuffer[PATH_MAX];
-  snprintf(zobDirBuffer, sizeof(zobDirBuffer), "%s/zob", homeDir);
-  zob_directory = zobDirBuffer;
+  sqlite3_close(db);
 }
 
 /* signal handler for sigint */
@@ -131,10 +145,8 @@ void waitForEnterKey() {
  * variable is not set.
  */
 const char *getHomeDirectory() {
-  // Fetch the HOME environment variable
   const char *homeDir = getenv("HOME");
   if (!homeDir) {
-    // HOME is not set; handle as needed
     printf("「Z O B」— Unable to discern the path home.\n");
     return NULL;
   }
@@ -153,19 +165,25 @@ bool validateDate(const char *date) {
 }
 
 /**
- * Adds a new TODO item to the .todos.csv file.
- * Prompts the user for the item's details, generates a unique ID,
- * and saves the new entry. Ensures the due date format is validated
- * before saving. The new item is appended to the file.
+ * Adds a new TODO item to the `todos` table in ZOB_DB
  */
-void addTodo() {
-  char filePath[1024];
-  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
+void addTodo(sqlite3 *db) {
+  const char *sqlCreateTable = "CREATE TABLE IF NOT EXISTS Todos ("
+                               "todo_id INTEGER PRIMARY KEY, "
+                               "due_date TEXT NOT NULL, "
+                               "status TEXT NOT NULL, "
+                               "title TEXT NOT NULL, "
+                               "description TEXT);";
+
+  char *errMsg = NULL;
+  int rc = sqlite3_exec(db, sqlCreateTable, 0, 0, &errMsg);
+  if (rc != SQLITE_OK) {
+    fprintf(stderr, "Failed to create table: %s\n", errMsg);
+    sqlite3_free(errMsg);
+    return;
+  }
 
   Todo newTodo;
-  newTodo.todo_id = generateTodoId();
-  if (newTodo.todo_id == -1)
-    return;
 
   printf("\n「Z O B」— Zen Org Binder\nReflect on the task's essence: ");
   scanf(" %[^\n]", newTodo.title);
@@ -175,8 +193,9 @@ void addTodo() {
     scanf("%8s", newTodo.due_date);
     if (!validateDate(newTodo.due_date)) {
       printf("「Z O B」— A leaf falls; the date is not proper.\n");
-    } else
+    } else {
       break;
+    }
   }
 
   printf("Whisper the task's details into the wind: ");
@@ -184,169 +203,138 @@ void addTodo() {
 
   strcpy(newTodo.status, "Pending");
 
-  FILE *file = fopen(filePath, "a");
-  if (!file) {
-    printf("「Z O B」— Unable to open the scroll.\n");
+  char *sqlInsert = "INSERT INTO Todos (due_date, status, title, description) "
+                    "VALUES (?, ?, ?, ?);";
+
+  sqlite3_stmt *stmt;
+  rc = sqlite3_prepare_v2(db, sqlInsert, -1, &stmt, NULL);
+  if (rc != SQLITE_OK) {
+    fprintf(stderr, "Failed to prepare statement: %s\n", sqlite3_errmsg(db));
     return;
   }
 
-  fprintf(file, "%d,%s,%s,%s,%s\n", newTodo.todo_id, newTodo.due_date,
-          newTodo.status, newTodo.title, newTodo.description);
-  fclose(file);
-  printf("「Z O B」— Your task joins the stream.\n");
-}
+  sqlite3_bind_text(stmt, 1, newTodo.due_date, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 2, newTodo.status, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 3, newTodo.title, -1, SQLITE_STATIC);
+  sqlite3_bind_text(stmt, 4, newTodo.description, -1, SQLITE_STATIC);
 
-/**
- * Removes a specified TODO item by its ID from the .todos.csv file.
- * Users are prompted to enter the ID of the TODO they wish to remove.
- * The function ensures only the specified TODO is removed, preserving all
- * others.
- */
-void removeTodo() {
-  char filePath[PATH_MAX], tempFilePath[PATH_MAX];
-  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
-  snprintf(tempFilePath, sizeof(tempFilePath), "%s/temp_todos.csv",
-           zob_directory);
-
-  FILE *file = fopen(filePath, "r");
-  FILE *tempFile = fopen(tempFilePath, "w");
-
-  if (!file || !tempFile) {
-    perror("「Z O B」— Failed to open the scroll");
-    exit(EXIT_FAILURE);
-  }
-
-  printf("\n「Z O B」— Zen Org Binder\n");
-  printf("Which task has reached enlightenment? Enter its ID: ");
-  int removeId;
-  scanf("%d", &removeId);
-
-  char line[1024];
-  int found = 0;
-
-  while (fgets(line, sizeof(line), file)) {
-    int todoId;
-    // todo ID first field in the CSV
-    if (sscanf(line, "%d,", &todoId) == 1 && todoId == removeId) {
-      found = 1; // Mark as found, but don't write to temp file
-      continue;
-    }
-    fputs(line, tempFile);
-  }
-
-  fclose(file);
-  fclose(tempFile);
-
-  // Update the file if todo found
-  if (found) {
-    remove(filePath);
-    rename(tempFilePath, filePath);
-    printf("「Z O B」— The task with ID %d is gone.\n", removeId);
+  rc = sqlite3_step(stmt);
+  if (rc != SQLITE_DONE) {
+    fprintf(stderr, "Failed to insert todo item: %s\n", sqlite3_errmsg(db));
   } else {
-    remove(tempFilePath);
-    printf("「Z O B」— No task with such ID was found.\n");
+    printf("「Z O B」— Your task joins the stream.\n");
   }
+  sqlite3_finalize(stmt);
 }
 
 /**
- * Generates a unique ID for a new TODO item.
- * The ID is determined by finding the highest existing ID in .todos.csv and
- * incrementing it. If the maximum number of TODOs is reached, the function
- * returns -1 to indicate failure.
+ * Prompts user to remove a TODO given an ID from ZOB_DB
  */
-int generateTodoId() {
-  char filePath[1024];
-  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
+void removeTodo(sqlite3 *db) {
+  viewTodosSortedByDate(db);
 
-  FILE *file = fopen(filePath, "r");
-  if (!file) {
-    printf("「Z O B」— Pathway obscured, cannot find todos.csv\n");
-    return -1;
-  }
+  int todoId;
+  char title[256];
 
-  int maxId = 0, todoCount = 0;
-  char line[1024];
+  printf("\n「Z O B」— Zen Org Binder\nWhich task has transcended? Enter its "
+         "ID: ");
+  scanf("%d", &todoId);
 
-  while (fgets(line, sizeof(line), file)) {
-    int id;
-    if (sscanf(line, "%d,", &id) == 1) {
-      maxId = id > maxId ? id : maxId;
-      todoCount++;
-    }
-  }
-
-  fclose(file);
-
-  if (todoCount >= max_todos) {
-    printf("「Z O B」— The scroll is full, no more todos can be inscribed\n");
-    return -1;
-  }
-
-  return maxId + 1;
-}
-
-/**
- * Displays todo items sorted by their due date from the .todos.csv file.
- */
-void viewTodosSortedByDate() {
-  Todo todos[max_todos];
-  char filePath[1024];
-  snprintf(filePath, sizeof(filePath), "%s/todos.csv", zob_directory);
-
-  int count = readTodosFromFile(filePath, todos, max_todos);
-  if (count == -1) {
-    printf("「Z O B」— Unable to conjure the list of tasks.\n");
+  /* Retrieve the task title before deletion */
+  const char *sqlSelect = "SELECT title FROM Todos WHERE todo_id = ?;";
+  sqlite3_stmt *selectStmt;
+  if (sqlite3_prepare_v2(db, sqlSelect, -1, &selectStmt, NULL) != SQLITE_OK) {
+    fprintf(stderr, "Failed to contemplate the task's existence: %s\n",
+            sqlite3_errmsg(db));
     return;
   }
-  // Sort todos by date
-  sortTodos(todos, count);
 
-  // Display sorted todos
+  sqlite3_bind_int(selectStmt, 1, todoId);
+  int stepResult = sqlite3_step(selectStmt);
+  if (stepResult != SQLITE_ROW) {
+    printf("「Z O B」— No task with such ID was found.\n");
+    sqlite3_finalize(selectStmt);
+    return;
+  }
+  strncpy(title, (const char *)sqlite3_column_text(selectStmt, 0),
+          sizeof(title));
+  sqlite3_finalize(selectStmt);
+
+  /* Confirm deletion */
+  printf("\n「Z O B」— The task \"%s\" is ready to leave the scroll. Are you "
+         "sure? (y/n): ",
+         title);
+  getchar();
+  char confirmation = getchar();
+  if (confirmation != 'y' && confirmation != 'Y') {
+    printf("「Z O B」— The task remains tethered.\n");
+    return;
+  }
+
+  /* Delete the task */
+  const char *sqlDelete = "DELETE FROM Todos WHERE todo_id = ?;";
+  sqlite3_stmt *deleteStmt;
+  if (sqlite3_prepare_v2(db, sqlDelete, -1, &deleteStmt, NULL) != SQLITE_OK) {
+    fprintf(stderr, "Failed to prepare for the task's release: %s\n",
+            sqlite3_errmsg(db));
+    return;
+  }
+  sqlite3_bind_int(deleteStmt, 1, todoId);
+  if (sqlite3_step(deleteStmt) != SQLITE_DONE) {
+    fprintf(stderr, "Failed to release the task: %s\n", sqlite3_errmsg(db));
+  } else {
+    printf("「Z O B」— \"%s\" has been released into the cosmos.\n", title);
+  }
+  sqlite3_finalize(deleteStmt);
+}
+
+/**
+ * Callback function used by SQLite to process each row in the query result.
+ * Formats and prints the todo item details in a table-like structure.
+ */
+static int callback(void *NotUsed, int argc, char **argv, char **azColName) {
+  (void)NotUsed;
+
+  printf("| %-4s | %-10s | %-8s | %-20s | %-30s |\n",
+         argv[0] ? argv[0] : "NULL",  // ID
+         argv[1] ? argv[1] : "NULL",  // Due Date
+         argv[2] ? argv[2] : "NULL",  // Status
+         argv[3] ? argv[3] : "NULL",  // Title
+         argv[4] ? argv[4] : "NULL"); // Description
+
+  return 0;
+}
+
+/**
+ * Displays all todo items sorted by their due date.
+ */
+void viewTodosSortedByDate(sqlite3 *db) {
+  char *errMsg = NULL;
+  int rc;
+
+  rc = db_open(ZOB_DB_PATH, &db);
+  if (rc) {
+    fprintf(stderr, "Can't open database: %s\n", sqlite3_errmsg(db));
+    return;
+  }
+
+  const char *sql = "SELECT todo_id, due_date, status, title, description FROM "
+                    "todos ORDER BY due_date ASC;";
+
+  /* clang-format absolutely mangles this */
   printf("\n「Z O B」— Tasks in the cycle's flow:\n");
-  for (int i = 0; i < count; ++i) {
-    printf("\nTask %d: [Due: %s] %s\n", todos[i].todo_id, todos[i].due_date,
-           todos[i].title);
-    printf("Status: %s\n", todos[i].status);
-    printf("Detail: %s\n", todos[i].description);
-    printf("\n---\n");
-  }
-}
+  printf("---------------------------------------------------------------------"
+         "-------------------\n");
+  printf("| %-4s | %-10s | %-8s | %-20s | %-30s |\n", "ID", "Due Date",
+         "Status", "Title", "Description");
+  printf("---------------------------------------------------------------------"
+         "-------------------\n");
 
-/**
- * Compares two todo items based on their due date for sorting.
- */
-int compareTodosByDate(const void *a, const void *b) {
-  const Todo *todoA = (const Todo *)a;
-  const Todo *todoB = (const Todo *)b;
-  return strcmp(todoA->due_date, todoB->due_date);
-}
-
-/**
- * Sorts an array of todo items by due date using the quicksort algorithm.
- */
-void sortTodos(Todo todos[], int count) {
-  qsort(todos, count, sizeof(Todo), compareTodosByDate);
-}
-
-/**
- * Reads todo items from a specified .todos.csv file into an array of Todo
- * structures. Returns the number of todos read.
- */
-int readTodosFromFile(const char *filePath, Todo todos[], int maxTodos) {
-  FILE *file = fopen(filePath, "r");
-  if (!file)
-    return -1;
-
-  char line[1024];
-  int count = 0;
-
-  while (fgets(line, sizeof(line), file) && count < maxTodos) {
-    sscanf(line, "%d,%8s,%[^,],%[^,],%255[^\n]", &todos[count].todo_id,
-           todos[count].due_date, todos[count].status, todos[count].title,
-           todos[count].description);
-    count++;
+  rc = sqlite3_exec(db, sql, callback, 0, &errMsg);
+  if (rc != SQLITE_OK) {
+    fprintf(stderr, "Failed to select data: %s\n", errMsg);
+    sqlite3_free(errMsg);
   }
 
-  fclose(file);
-  return count;
+  sqlite3_close(db);
 }
