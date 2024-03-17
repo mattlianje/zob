@@ -1,25 +1,27 @@
 CC=gcc
-CFLAGS=-I. -Iinclude
-SRC=src/zob.c
-TEST_SRC=tests/test_zob.c
+CFLAGS=-I./utils
+LDFLAGS=-lsqlite3
+SRC=zob.c utils/db_utils.c
 OBJ=$(SRC:.c=.o)
-TEST_OBJ=$(TEST_SRC:.c=.o)
+EXEC=zob-db
 
-# Compile and run as per the usual
-all: $(OBJ)
-	$(CC) $(CFLAGS) -o zob $(OBJ)
+.PHONY: all check_sqlite clean
 
-# Compile and run tests
-test: CFLAGS += -DTESTING
-test: $(OBJ) $(TEST_OBJ)
-	$(CC) $(CFLAGS) -o test_test $(TEST_OBJ) $(filter-out src/main.o, $(OBJ))
-	./test_test
+all: check_sqlite $(EXEC)
 
-# Generic rule for compiling .c to .o
+$(EXEC): $(OBJ)
+	$(CC) -o $@ $^ $(LDFLAGS)
+
 %.o: %.c
-	$(CC) $(CFLAGS) -c $< -o $@
+	$(CC) -c -o $@ $< $(CFLAGS)
+
+#  gcc -o zob-db zob.c utils/db_utils.c -lsqlite3 -I./utils
+
+check_sqlite:
+	@echo "Checking for SQLite3..."
+	@command -v sqlite3 >/dev/null 2>&1 || { echo >&2 "SQLite3 is not installed. Please install SQLite3."; \
+	brew install sqlite3; \
+	exit 1; }
 
 clean:
-	rm -f src/*.o tests/*.o zob test_test
-
-.PHONY: all test clean
+	rm -f $(EXEC) $(OBJ)
