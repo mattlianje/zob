@@ -16,7 +16,7 @@ The `ZOB` binary aims to:
 - Link against the fewest possible libraries:
   - [libcurl](https://curl.se/libcurl/)'s C API is being used as raw sockets don't support tls
 
-The ZOB binary does not have a runtime config, and is (re)built as the
+The `ZOB` binary does not have a runtime config, and is (re)built with its settings as the
 `ZOBMASTER` sees fit. 
 It uses an in-process [SQLite](https://www.sqlite.org/index.html) database which persists
 to `<ZOB_DB_NAME>.db` at the root of the `ZOB_DIRECTORY` chosen by the `ZOBMASTER`.
