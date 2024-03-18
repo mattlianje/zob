@@ -14,7 +14,7 @@ The `ZOB` binary aims to:
 - Be my trusty steed across UNIX systems
 - Have a small memory footprint
 - Link against the fewest possible libraries ....
-  - *libcurl is being used for now as raw sockets do not support tls
+  - [libcurl](https://curl.se/libcurl/)'s C API is being used as raw sockets don't support tls
 
 The ZOB binary does not have a runtime config, and is (re)built as the
 `ZOBMASTER` sees fit. 
