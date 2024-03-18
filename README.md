@@ -1,5 +1,5 @@
 # zob
-「Zen · Org · Binder」My OrgMode-like tool for UNIX systems. 
+「Zen · Org · Binder」My life in plaintext
 <p align="center">
   <img src="pix/gandalf-study.jpeg" width="500" alt="Gandalf in Gondorian library">
 </p>
@@ -9,8 +9,10 @@ in the ZOB ecosystem are:
 - Adhere to the UNIX philosophy and do one thing
 - Are written in <1000 lines of frugal C99
 
-The ZOB binary aims above all:
-- To have a small memory footprint
+# goal
+The ZOB binary aims above all to:
+- Be my trusty steed across UNIX systems
+- Have a small memory footprint
 - Link against the fewest possible libraries (libcurl is being used for now as raw sockets
 do not support tls)
 
