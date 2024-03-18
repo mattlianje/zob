@@ -16,7 +16,7 @@ The ZOB binary aims above all to:
 - Link against the fewest possible libraries (libcurl is being used for now as raw sockets
 do not support tls)
 
-The ZOB binary binary does not have a runtime config, and is rebuilt as the
+The ZOB binary binary does not have a runtime config, and is (re)built as the
 `ZOBMASTER` sees fit. It uses an in process [SQLite](https://www.sqlite.org/index.html) database which persists
 to `<ZOB_DB_NAME>.db` at the root of the `ZOB_DIRECTORY` chosen by the `ZOBMASTER`.
 The `ZOBMASTER` pseudonym is used as the <author> for zob typsetting programs.
