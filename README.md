@@ -10,7 +10,7 @@ in the ZOB ecosystem:
 - Are written in <1000 lines of frugal C99
 
 # goal
-The ZOB binary aims above all to:
+The `ZOB` binary aims to:
 - Be my trusty steed across UNIX systems
 - Have a small memory footprint
 - Link against the fewest possible libraries (libcurl is being used for now as raw sockets
