@@ -1,11 +1,11 @@
 # zob
-「Zen · Org · Binder」My life in plaintext
+The _**「Zen · Org · Binder」**_ ,my life in plain text
 <p align="center">
   <img src="pix/gandalf-study.jpeg" width="500" alt="Gandalf in Gondorian library">
 </p>
 
 Inspired by the [suckless philosophy](https://suckless.org/philosophy/) all programs
-in the ZOB ecosystem are:
+in the ZOB ecosystem:
 - Adhere to the UNIX philosophy and do one thing
 - Are written in <1000 lines of frugal C99
 
