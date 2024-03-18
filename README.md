@@ -27,7 +27,7 @@ The `ZOBMASTER` pseudonym is used as the `<author>` for zob typsetting programs.
 
 # programs
 ```
-zob             — zen task manager
+zob todo        — todo manager
 zob rss         — simple RSS feed reader
 zob fmt         — wrapper for all your code linters
 zob tex         — (.md -> LaTeX) generator
