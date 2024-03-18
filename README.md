@@ -20,7 +20,7 @@ to `<ZOB_DB_NAME>.db` at the root of the `ZOB_DIRECTORY` chosen by the `ZOBMASTE
 The `ZOBMASTER` pseudonym is used as the <author> for zob typsetting programs.
 
 <p align="center">
-  <img src="pix/zob.png" width="500" alt="The zobosystem">
+  <img src="pix/zob.svg" width="500" alt="The zobosystem">
 </p>
 
 # programs
