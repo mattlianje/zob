@@ -30,7 +30,7 @@ The `ZOBMASTER` pseudonym is used as the `<author>` for zob typsetting programs.
 zob             — zen task manager
 zob rss         — simple RSS feed reader
 zob fmt         — wrapper for all your code linters
-zob tex         — zob-markdown -> LaTeX generator
-zob html        — zob-markdown -> HTML generator
-zob tengwar     — ???
+zob tex         — (.md -> LaTeX) generator
+zob html        — (.md -> HTML) generator
+zob mem         — ???
 ```
