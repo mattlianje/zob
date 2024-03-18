@@ -19,7 +19,7 @@ do not support tls)
 The ZOB binary binary does not have a runtime config, and is (re)built as the
 `ZOBMASTER` sees fit. It uses an in-process [SQLite](https://www.sqlite.org/index.html) database which persists
 to `<ZOB_DB_NAME>.db` at the root of the `ZOB_DIRECTORY` chosen by the `ZOBMASTER`.
-The `ZOBMASTER` pseudonym is used as the <author> for zob typsetting programs.
+The `ZOBMASTER` pseudonym is used as the `<author>` for zob typsetting programs.
 
 <p align="center">
   <img src="pix/zob.svg" width="400" alt="The zobosystem">
