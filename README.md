@@ -1,5 +1,5 @@
 # zob
-The **「Zen Org Binder」** my life in plain text
+The **「Zen Org Binder」** My life in plain text.
 <p align="center">
   <img src="pix/gandalf-study.jpeg" width="500" alt="Gandalf in Gondorian library">
 </p>
