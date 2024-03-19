@@ -37,5 +37,5 @@ zob mem         — ???
 
 # zob rss
 <p align="center">
-  <img src="pix/zob-rss.png" width="600" alt="zob rss">
+  <img src="pix/zob-rss.png" width="750" alt="zob rss">
 </p>
