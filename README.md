@@ -31,7 +31,6 @@ zob todo        — todo manager
 zob rss         — simple RSS feed reader
 zob fmt         — wrapper for all your code linters
 zob tex         — (.md -> LaTeX) generator
-zob html        — (.md -> HTML) generator
 zob mem         — ???
 ```
 
