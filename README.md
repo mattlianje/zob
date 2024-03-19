@@ -34,3 +34,8 @@ zob tex         — (.md -> LaTeX) generator
 zob html        — (.md -> HTML) generator
 zob mem         — ???
 ```
+
+# zob rss
+<p align="center">
+  <img src="pix/zob-rss.png" width="500" alt="zob rss">
+</p>
