@@ -20,6 +20,49 @@ struct MemoryStruct {
   size_t size;
 };
 
+/* Prototypes */
+char *trimWhitespace(char *str);
+static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb,
+                                  struct MemoryStruct *mem);
+void parse_rss(const char *rss_content);
+size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
+void httpGet(const char *url);
+void displayMenu();
+
+int main() {
+  int choice;
+
+  while (1) {
+    system("clear || cls");
+    displayMenu();
+    scanf("%d", &choice);
+    while (getchar() != '\n')
+      ;
+
+    if (choice > 0 && choice <= NUM_PUBLICATIONS) {
+      httpGet(publications[choice - 1].url);
+      printf("\nPress ENTER to return to the menu...");
+      getchar();
+    } else if (choice == NUM_PUBLICATIONS + 1) {
+      printf("「Z O B」— Exiting... May your path be enlightened.\n");
+      break;
+    } else {
+      printf("「Z O B」— A leaf falls; the choice is unknown. Please select "
+             "again.\n");
+    }
+  }
+  return 0;
+}
+
+void displayMenu() {
+  printf("\n「Z O B」— Zen RSS\n\n");
+  for (int i = 0; i < NUM_PUBLICATIONS; ++i) {
+    printf("%d. %s\n", i + 1, publications[i].name);
+  }
+  printf("%d. Exit\n\n", NUM_PUBLICATIONS + 1);
+  printf("Select the source or exit: ");
+}
+
 /**
  * Trims leading and trailing whitespace from a string, removes CDATA sections,
  * and returns the trimmed string.
@@ -187,39 +230,4 @@ void httpGet(const char *url) {
 
   free(chunk.memory);
   curl_easy_cleanup(curl);
-}
-
-void displayMenu() {
-  printf("\n「Z O B」— Zen RSS\n\n");
-  for (int i = 0; i < NUM_PUBLICATIONS; ++i) {
-    printf("%d. %s\n", i + 1, publications[i].name);
-  }
-  printf("%d. Exit\n\n", NUM_PUBLICATIONS + 1);
-  printf("Select the source or exit: ");
-}
-
-int main() {
-  int choice;
-
-  while (1) {
-    system("clear || cls");
-    displayMenu();
-    scanf("%d", &choice);
-    while (getchar() != '\n')
-      ;
-
-    if (choice > 0 && choice <= NUM_PUBLICATIONS) {
-      httpGet(publications[choice - 1].url);
-      printf("\nPress ENTER to return to the menu...");
-      getchar();
-    } else if (choice == NUM_PUBLICATIONS + 1) {
-      printf("「Z O B」— Exiting... May your path be enlightened.\n");
-      break;
-    } else {
-      printf("「Z O B」— A leaf falls; the choice is unknown. Please select "
-             "again.\n");
-    }
-  }
-
-  return 0;
 }

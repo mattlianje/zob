@@ -16,6 +16,7 @@ $(EXEC): $(OBJ)
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 #  gcc -o zob-db zob.c utils/db_utils.c -lsqlite3 -I./utils
+#  gcc -o zob_rss zob_rss.c -lcurl
 
 check_sqlite:
 	@echo "Checking for SQLite3..."
