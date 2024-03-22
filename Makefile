@@ -1,28 +1,16 @@
 CC=gcc
 CFLAGS=-I./utils
-LDFLAGS=-lsqlite3
-SRC=zob.c utils/db_utils.c
+LIBS=-lsqlite3 -lcurl
+
+#  gcc -o zob zob.c zob_rss.c zob_todo.c utils/db_utils.c -lsqlite3 -lcurl -I./utils
+SRC=$(wildcard src/*.c src/utils/*.c)
 OBJ=$(SRC:.c=.o)
-EXEC=zob-db
+EXEC=zob
 
-.PHONY: all check_sqlite clean
+all: $(EXEC)
 
-all: check_sqlite $(EXEC)
-
-$(EXEC): $(OBJ)
-	$(CC) -o $@ $^ $(LDFLAGS)
-
-%.o: %.c
-	$(CC) -c -o $@ $< $(CFLAGS)
-
-#  gcc -o zob-db zob.c utils/db_utils.c -lsqlite3 -I./utils
-#  gcc -o zob_rss zob_rss.c -lcurl
-
-check_sqlite:
-	@echo "Checking for SQLite3..."
-	@command -v sqlite3 >/dev/null 2>&1 || { echo >&2 "SQLite3 is not installed. Please install SQLite3."; \
-	brew install sqlite3; \
-	exit 1; }
+$(EXEC):
+	$(CC) -o $(EXEC) $(SRC) $(CFLAGS) $(LIBS)
 
 clean:
-	rm -f $(EXEC) $(OBJ)
+	rm -f src/*.o src/utils/*.o $(EXEC)

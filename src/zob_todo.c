@@ -1,4 +1,5 @@
 #include "config.h"
+#include "zob_todo.h"
 #include "utils/db_utils.h"
 
 #include <errno.h>
@@ -27,7 +28,7 @@ void initializeGlobals();
 void setupSigintHandler();
 
 /* Core */
-void displayMenu();
+void displayTodoMenu();
 void addTodo(sqlite3 *db);
 void viewTodosSortedByDate(sqlite3 *db);
 void removeTodo(sqlite3 *db);
@@ -45,10 +46,10 @@ void handle_sigint(int sig);
 
 char ZOB_DB_PATH[PATH_MAX];
 
-int main() {
+/* main entrypoint */
+void runTodo() {
   constructFullPath();
-  displayMenu();
-  return 0;
+  displayTodoMenu();
 }
 
 void constructFullPath() {
@@ -66,7 +67,7 @@ void constructFullPath() {
  * Interactive mode for managing TODO items.
  * Changes are persisted to the ZOB_DB SQLite
  */
-void displayMenu() {
+void displayTodoMenu() {
   int choice;
 
   sqlite3 *db;

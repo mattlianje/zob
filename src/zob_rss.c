@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include "zob_rss.h"
 
 /**
  * A structure to hold data received from an HTTP response in memory. This
@@ -27,14 +28,15 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb,
 void parse_rss(const char *rss_content);
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream);
 void httpGet(const char *url);
-void displayMenu();
+void displayRssMenu();
 
-int main() {
+/* main entrypoint */
+void runRss() {
   int choice;
 
   while (1) {
     system("clear || cls");
-    displayMenu();
+    displayRssMenu();
     scanf("%d", &choice);
     while (getchar() != '\n')
       ;
@@ -51,10 +53,9 @@ int main() {
              "again.\n");
     }
   }
-  return 0;
 }
 
-void displayMenu() {
+void displayRssMenu() {
   printf("\n「Z O B」— Zen RSS\n\n");
   for (int i = 0; i < NUM_PUBLICATIONS; ++i) {
     printf("%d. %s\n", i + 1, publications[i].name);
