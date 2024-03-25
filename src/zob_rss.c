@@ -7,16 +7,6 @@
 #include "config.h"
 #include "zob_rss.h"
 
-/**
- * A structure to hold data received from an HTTP response in memory. This
- * structure is used with libcurl's write callback function to dynamically
- * accumulate response data.
- *
- * @param memory Pointer to the buffer that holds the received data. This buffer
- * is dynamically allocated and resized as needed.
- * @param size The current size of the buffer, in bytes. This value is updated
- * as more data is written to the buffer.
- */
 struct MemoryStruct {
      char *memory;
      size_t size;
@@ -47,6 +37,7 @@ void runRss() {
                printf("\nPress ENTER to return to the menu...");
                getchar();
           } else if (choice == NUM_PUBLICATIONS + 1) {
+               system("clear || cls");
                printf("「Z O B」— Exiting... May your path be enlightened.\n");
                break;
           } else {
@@ -66,12 +57,6 @@ void displayRssMenu() {
      printf("Select the source or exit: ");
 }
 
-/**
- * Trims leading and trailing whitespace from a string, removes CDATA sections,
- * and returns the trimmed string.
- * @param str A pointer to the string to be trimmed.
- * @return A pointer to the trimmed string.
- */
 char *trimWhitespace(char *str) {
      char *end;
      while (isspace((unsigned char)*str)) str++;
@@ -97,16 +82,6 @@ char *trimWhitespace(char *str) {
      return str;
 }
 
-/**
- * Reallocates memory to store data received from a libcurl operation, ensuring
- * the memory block grows as needed.
- * @param contents Pointer to the received data.
- * @param size Size of one data element received.
- * @param nmemb Number of data elements received.
- * @param userp Pointer to a user-defined struct (MemoryStruct) where the
- * received data is stored.
- * @return The total size of the received data.
- */
 static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb,
                                   struct MemoryStruct *mem) {
      size_t realsize = size * nmemb;
@@ -125,14 +100,6 @@ static size_t WriteMemoryCallback(void *contents, size_t size, size_t nmemb,
      return realsize;
 }
 
-/**
- * Parses the given RSS content, extracting and formatting the title, link,
- * description, and publication date of each item. The formatted output is
- * printed to stdout.
- *
- * @param rss_content A string containing the complete RSS feed content to be
- * parsed.
- */
 void parse_rss(const char *rss_content) {
      int itemCount = 1;
      const char *itemStart = rss_content;
@@ -180,30 +147,11 @@ void parse_rss(const char *rss_content) {
      }
 }
 
-/**
- * Writes data received from a libcurl request to the provided stream. This
- * function is intended to be used as a callback with CURLOPT_WRITEFUNCTION in
- * libcurl operations.
- *
- * @param ptr Pointer to the data received from the libcurl request.
- * @param size Size of each element to be written.
- * @param nmemb Number of elements to be written.
- * @param stream A FILE stream where the data will be written.
- * @return The total number of bytes written.
- */
 size_t write_data(void *ptr, size_t size, size_t nmemb, FILE *stream) {
      size_t written = fwrite(ptr, size, nmemb, stream);
      return written;
 }
 
-/**
- * Performs an HTTP GET request to the specified URL using libcurl, and
- * processes the response using the parse_rss function. The MemoryStruct
- * structure is used to dynamically store the response data, which is then
- * parsed to extract RSS feed items.
- *
- * @param url The URL from which to fetch RSS content.
- */
 void httpGet(const char *url) {
      CURL *curl = curl_easy_init();
      if (!curl) {
