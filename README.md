@@ -44,5 +44,5 @@ zob mem         — ???
   <img src="pix/zob-tex-md.png" width="750" alt="zob tex md">
 </p>
 <p align="center">
-  <img src="pix/zob-tex-pdf.png" width="750" alt="zob tex pdf">
+  <img src="pix/zob-tex-pdf-2.png" width="750" alt="zob tex pdf">
 </p>
