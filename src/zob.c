@@ -45,6 +45,7 @@ int main(int argc, char *argv[]) {
 
      if (argc < 2) {
           while (1) {
+               system("clear || cls");
                displayZenMenu();
                int choice;
                scanf("%d", &choice);
