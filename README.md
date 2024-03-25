@@ -38,3 +38,11 @@ zob mem         — ???
 <p align="center">
   <img src="pix/zob-rss-2.png" width="750" alt="zob rss">
 </p>
+
+# zob tex
+<p align="center">
+  <img src="pix/zob-tex-md.png" width="750" alt="zob tex md">
+</p>
+<p align="center">
+  <img src="pix/zob-tex-pdf.png" width="750" alt="zob tex pdf">
+</p>
