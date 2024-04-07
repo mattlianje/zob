@@ -6,7 +6,7 @@ The **「Zen Org Binder」** My life in plain text
 
 Inspired by the [suckless philosophy](https://suckless.org/philosophy/) all programs
 in the `ZOB` ecosystem:
-- Do one thing
+- Do one thing well
 - Are written in <1000 lines of frugal C99
 
 # goal
