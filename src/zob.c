@@ -81,6 +81,8 @@ void runTodoProgram() { runTodo(); }
 
 void runRssProgram() { runRss(); }
 
-void runTexProgram(int argc, char *argv[]) { runTex(argc, argv); }
+void runTexProgram(int argc, char *argv[]) {
+    runTex(argc, argv);
+}
 
 void runFmtProgram(int argc, char *argv[]) { runFmt(argc, argv); }

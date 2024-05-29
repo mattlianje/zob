@@ -3,9 +3,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "config.h"
-#include "zob_tex.h"
-
 typedef enum {
      TOKEN_TEXT,
      TOKEN_HEADER1,
@@ -91,7 +88,6 @@ Token *tokenizeMarkdown(const char *markdown) {
                continue;
           }
 
-          /* When we enter a code block */
           if (strncmp(ptr, "```", 3) == 0) {
                ptr += 3;
                insideCodeBlock = true;
@@ -116,7 +112,6 @@ Token *tokenizeMarkdown(const char *markdown) {
                free(link_text);
                free(url);
                free(full_link);
-               /* TODO better handle malloc failure */
                if (!*current) return head;
                current = &(*current)->next;
                continue;
@@ -223,26 +218,26 @@ char *convertTokensToLatex(Token *tokens) {
                          current += sprintf(current, "\\end{itemize}\n");
                          insideList = false;
                     }
-                    current += sprintf(
-                        current,
-                        token->type == TOKEN_HEADER1 ? "\n\\section{%s}\n" : "\n\\subsection{%s}\n",
-                        token->content);
+                    current += sprintf(current,
+                                       token->type == TOKEN_HEADER1 ? "\n\\section{%s}\n\n"
+                                                                    : "\n\\subsection{%s}\n\n",
+                                       token->content);
                     break;
                case TOKEN_BOLD:
-                    current += sprintf(current, "\\textbf{%s} ", token->content);
+                    current += sprintf(current, "\\textbf{%s}", token->content);
                     break;
                case TOKEN_ITALIC:
-                    current += sprintf(current, "\\textit{%s} ", token->content);
+                    current += sprintf(current, "\\textbf{%s}", token->content);
                     break;
                case TOKEN_LINK:
-                    current += sprintf(current, "\\href{http://example.com}{%s}", token->content);
+                    current += sprintf(current, "%s", token->content);
                     break;
                case TOKEN_LIST_ITEM:
                     if (!insideList) {
                          current += sprintf(current, "\\begin{itemize}\n");
                          insideList = true;
                     }
-                    current += sprintf(current, "\\item %s", token->content);
+                    current += sprintf(current, "     \\item %s", token->content);
                     if (token->next && token->next->type != TOKEN_LIST_ITEM) {
                          current += sprintf(current, "\n\\end{itemize}\n");
                          insideList = false;
@@ -275,23 +270,30 @@ char *convertTokensToLatex(Token *tokens) {
 }
 
 void runTex(int argc, char **argv) {
-     char filename[256];
+     const char *filePath = NULL;
 
-     if (argc != 2) {
-          fprintf(stderr, "Usage: %s <markdown file>\n", argv[0]);
+     if (argc == 2 && strcmp(argv[1], "tex") == 0) {
+          char filename[256];
+          printf("Enter the markdown filename: ");
+          if (fgets(filename, sizeof(filename), stdin) != NULL) {
+               filename[strcspn(filename, "\n")] = '\0';
+               filePath = filename;
+          } else {
+               fprintf(stderr, "Failed to read filename.\n");
+               return;
+          }
+     } else if (argc > 2) {
+          filePath = argv[2];
+     }
+
+     if (!filePath) {
+          fprintf(stderr, "No filename provided.\n");
           return;
      }
 
-     strcpy(filename, argv[1]); /* Copies the file name from args */
-     size_t len = strlen(filename);
-     if (len < 3 || strcmp(filename + len - 3, ".md") != 0) {
-          fprintf(stderr, "The file must have a '.md' extension.\n");
-          return;
-     }
-
-     char *markdownContent = readFileIntoString(filename);
+     char *markdownContent = readFileIntoString(filePath);
      if (markdownContent == NULL) {
-          fprintf(stderr, "Failed to read file.\n");
+          fprintf(stderr, "Failed to read file: %s\n", filePath);
           return;
      }
 
@@ -312,29 +314,5 @@ void runTex(int argc, char **argv) {
      } else {
           fprintf(stderr, "Failed to convert tokens to LaTeX.\n");
      }
-}
-
-int main() {
-     const char *markdown =
-         "# Header1\n"
-         "This is some text **bold** *italic*.\n"
-         "- Item 1\n"
-         "- Item 2\n"
-         "Another paragraph.\n"
-         "[Link](http://example.com)\n"
-         "## Header2\n"
-         "Code block:\n"
-         "```\n"
-         "printf(\"Hello, world!\\n\");\n"
-         "```\n";
-
-     Token *tokens = tokenizeMarkdown(markdown);
-     char *latex = convertTokensToLatex(tokens);
-     if (latex) {
-          printf("%s\n", latex);
-          free(latex);
-     }
-     freeTokens(tokens);
-     return 0;
 }
 

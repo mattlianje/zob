@@ -1,3 +1,5 @@
+#include "zob_fmt.h"
+
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -5,7 +7,6 @@
 #include <unistd.h>
 
 #include "config.h"
-#include "zob_fmt.h"
 
 void runFmt(int argc, char **argv) {
      char filename[256] = {0};
@@ -18,7 +19,7 @@ void runFmt(int argc, char **argv) {
                return;
           }
      } else {
-          strncpy(filename, argv[1], sizeof(filename) - 1);
+          strncpy(filename, argv[2], sizeof(filename) - 1);
      }
 
      const char *fileExtension = strrchr(filename, '.');
