@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="pix/zob_with_github.png" width="500" alt="zob logo">
+  <img src="pix/zob_with_github.png" width="400" alt="zob logo">
 </p>
 
 # zob
