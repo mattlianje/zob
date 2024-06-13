@@ -1,8 +1,9 @@
-# zob
-The **「Zen Org Binder」** My life in plain text
 <p align="center">
   <img src="pix/zob_with_github.png" width="500" alt="zob logo">
 </p>
+
+# zob
+The **「Zen Org Binder」** My life in plain text
 
 Inspired by the [suckless philosophy](https://suckless.org/philosophy/) all programs
 in the `ZOB` ecosystem:
