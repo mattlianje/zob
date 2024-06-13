@@ -22,7 +22,7 @@ database which persists to `<ZOB_DB_NAME>.db` at the root of the `ZOB_DIRECTORY`
 The `ZOBMASTER` pseudonym is used as the `<author>` for zob typsetting programs.
 
 <p align="center">
-  <img src="pix/zob.svg" width="400" alt="The zobosystem">
+  <img src="pix/zob-diagram.svg" width="400" alt="The zobosystem">
 </p>
 
 # programs
